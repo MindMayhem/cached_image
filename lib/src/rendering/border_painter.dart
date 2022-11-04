@@ -2,7 +2,7 @@ import 'package:flutter/rendering.dart';
 
 class ImageBorderPainter extends CustomPainter {
   ImageBorderPainter({
-    this.border = Border.all(),
+    this.border = const Border.all(),
     this.shape = BoxShape.rectangle,
     this.borderRadius,
   });
