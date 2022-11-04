@@ -1,9 +1,10 @@
-import 'package:flutter/rendering.dart';
+import 'package:flutter/widgets.dart';
 
 class ImageBorderPainter extends CustomPainter {
   ImageBorderPainter({
     this.border = const Border.fromBorderSide(BorderSide()),
     this.shape = BoxShape.rectangle,
+    required this.rawImage,
     this.borderRadius,
   });
 
@@ -19,6 +20,7 @@ class ImageBorderPainter extends CustomPainter {
   /// [BoxShape.circle] and [RoundedRectangleBorder] instead of
   /// [BoxShape.rectangle].
   final BoxShape shape;
+  final RawImage rawImage;
 
   /// A border to draw above the background [color], [gradient], or [image].
   ///
@@ -39,18 +41,17 @@ class ImageBorderPainter extends CustomPainter {
   final BorderRadius? borderRadius;
   @override
   void paint(Canvas canvas, Size size) {
-    final Rect outputRect = Rect.fromLTWH(0.0, 0.0, size.width, size.height);
-    if (border != null) {
-      switch (shape) {
-        case BoxShape.circle:
-          border!.paint(canvas, outputRect, shape: shape);
-          break;
-        case BoxShape.rectangle:
-          border!.paint(canvas, outputRect,
-              shape: shape, borderRadius: borderRadius);
-          break;
-      }
+    final Rect rect = Rect.fromLTWH(0.0, 0.0, size.width, size.height);
+    if (rawImage.image == null) {
+      return;
     }
+    Path? clipPath;
+    if (borderRadius != null) {
+      clipPath = Path()..addRRect(borderRadius!.toRRect(rect));
+      canvas.clipPath(clipPath);
+    }
+
+    paintImage(canvas: canvas, rect: rect, image: rawImage.image!);
   }
 
   @override

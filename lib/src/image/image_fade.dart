@@ -266,12 +266,15 @@ class _ImageFadeState extends State<ImageFade> with TickerProviderStateMixin {
         front ?? back ?? widget.placeholder ?? const SizedBox.shrink();
 
     if (widget.borderRadius != null) {
-      content = CustomPaint(
+      if (content is RawImage) {
+        content = CustomPaint(
           foregroundPainter: ImageBorderPainter(
+              rawImage: content,
               borderRadius:
                   BorderRadius.all(Radius.circular(widget.borderRadius ?? 16)),
               shape: BoxShape.rectangle),
-          child: content);
+        );
+      }
     }
     if (widget.excludeFromSemantics) return content;
 
