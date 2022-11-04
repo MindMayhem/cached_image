@@ -2,7 +2,7 @@ library image_fade;
 
 import 'dart:ui' as ui;
 
-import 'package:cached_image/src/image/raw_image_provider.dart';
+import 'package:cached_image/src/rendering/border_painter.dart';
 import 'package:flutter/widgets.dart';
 
 /// Signature used by [ImageFade.errorBuilder] to build the widget that will be displayed
@@ -39,9 +39,10 @@ class ImageFade extends StatefulWidget {
   /// Creates a widget that displays a [placeholder] widget while a specified [image] loads,
   /// then cross-fades to the loaded image.
   const ImageFade({
-    super.key,
+    Key? key,
     this.placeholder,
     this.image,
+    this.borderRadius,
     this.curve = Curves.linear,
     this.duration = const Duration(milliseconds: 300),
     this.syncDuration,
@@ -50,13 +51,12 @@ class ImageFade extends StatefulWidget {
     this.fit = BoxFit.scaleDown,
     this.alignment = Alignment.center,
     this.repeat = ImageRepeat.noRepeat,
-    this.borderRadius,
     this.matchTextDirection = false,
     this.excludeFromSemantics = false,
     this.semanticLabel,
     this.loadingBuilder,
     this.errorBuilder,
-  });
+  }) : super(key: key);
 
   /// Widget layered behind the loaded images. Displayed when [image] is null or is loading initially.
   final Widget? placeholder;
@@ -64,14 +64,13 @@ class ImageFade extends StatefulWidget {
   /// The image to display. Subsequently changing the image will fade the new image over the previous one.
   final ImageProvider? image;
 
+  final double? borderRadius;
+
   /// The curve of the fade-in animation.
   final Curve curve;
 
   /// The duration of the fade-in animation.
   final Duration duration;
-
-  /// The duration of the fade-in animation.
-  final double? borderRadius;
 
   /// An optional duration for fading in a synchronously loaded image (ex. from memory), error, or placeholder.
   /// For example, you could set this to `Duration.zero` to immediately display images that are already loaded.
@@ -147,8 +146,8 @@ class _ImageFadeState extends State<ImageFade> with TickerProviderStateMixin {
   }
 
   void _update(BuildContext context, [ImageFade? old]) {
-    final image = widget.image;
-    final oldImage = old?.image;
+    final ImageProvider? image = widget.image;
+    final ImageProvider? oldImage = old?.image;
     if (image == oldImage) return;
 
     _back = null;
@@ -185,36 +184,19 @@ class _ImageFadeState extends State<ImageFade> with TickerProviderStateMixin {
 
   void _buildFront(BuildContext context) {
     _shouldBuildFront = false;
-    final resolver = _resolver!;
+    _ImageResolver resolver = _resolver!;
     _front = resolver.error
         ? widget.errorBuilder?.call(context, resolver.exception!)
-        : DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.all(
-                Radius.circular(widget.borderRadius ?? 16),
-              ),
-              image: DecorationImage(
-                fit: BoxFit.cover,
-                image: RawImageProvider(_resolver!.image!),
-              ),
-            ),
-          );
-    if (widget.width != null && widget.height != null) {
-      _front = SizedBox(
-        height: widget.height,
-        width: widget.width,
-        child: _front,
-      );
-    }
+        : _getImage(resolver.image);
     _buildTransition();
   }
 
   void _buildTransition() {
-    final out = _front == null; // no new image
+    final bool out = _front == null; // no new image
 
     // use the "fast" duration if sync load, error, or placeholder:
-    final fast = _sync != false || _resolver?.error == true || out;
-    final duration = (fast ? widget.syncDuration : null) ?? widget.duration;
+    bool fast = (_sync != false || _resolver?.error == true || out);
+    Duration duration = (fast ? widget.syncDuration : null) ?? widget.duration;
 
     // Fade in for duration, out for 1/2 as long:
     _controller.duration = duration * (out ? 1 : 3 / 2);
@@ -223,16 +205,16 @@ class _ImageFadeState extends State<ImageFade> with TickerProviderStateMixin {
       child: _front,
       opacity: CurvedAnimation(
         parent: _controller,
-        curve: Interval(0, 2 / 3, curve: widget.curve),
+        curve: Interval(0.0, 2 / 3, curve: widget.curve),
       ),
     );
 
     _fadeBack = _buildFade(
       child: _back,
-      opacity: Tween<double>(begin: 1, end: 0).animate(
+      opacity: Tween<double>(begin: 1.0, end: 0).animate(
         CurvedAnimation(
           parent: _controller,
-          curve: Interval(out ? 0.0 : 2 / 3, 1),
+          curve: Interval(out ? 0.0 : 2 / 3, 1.0),
         ),
       ),
     );
@@ -243,20 +225,33 @@ class _ImageFadeState extends State<ImageFade> with TickerProviderStateMixin {
   Widget? _buildFade({Widget? child, required Animation<double> opacity}) {
     if (child == null) return null;
     // if the child is a loaded image, we can fade its opacity directly for better performance:
+    return (child is RawImage)
+        ? _getImage(child.image, opacity: opacity)
+        : FadeTransition(child: child, opacity: opacity);
+  }
 
-    return FadeTransition(opacity: opacity, child: child);
+  RawImage _getImage(ui.Image? image, {Animation<double>? opacity}) {
+    return RawImage(
+      image: image,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      alignment: widget.alignment,
+      repeat: widget.repeat,
+      matchTextDirection: widget.matchTextDirection,
+      opacity: opacity,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     _sync ??= false;
     if (_shouldBuildFront) _buildFront(context);
-    var front = _fadeFront;
-    final back = _fadeBack;
+    Widget? front = _fadeFront, back = _fadeBack;
 
-    final inLoad = _resolver != null && !_resolver!.complete;
+    bool inLoad = _resolver != null && !_resolver!.complete;
     if (inLoad && widget.loadingBuilder != null) {
-      final resolver = _resolver!;
+      _ImageResolver resolver = _resolver!;
       front = AnimatedBuilder(
         animation: resolver.notifier,
         builder: (_, __) => widget.loadingBuilder!(
@@ -267,17 +262,24 @@ class _ImageFadeState extends State<ImageFade> with TickerProviderStateMixin {
       );
     }
 
-    final content =
+    var content =
         front ?? back ?? widget.placeholder ?? const SizedBox.shrink();
 
+    if (widget.borderRadius != null) {
+      content = CustomPaint(
+          foregroundPainter: ImageBorderPainter(
+              borderRadius:
+                  BorderRadius.all(Radius.circular(widget.borderRadius ?? 16)),
+              shape: BoxShape.rectangle),
+          child: content);
+    }
     if (widget.excludeFromSemantics) return content;
 
-    final label = widget.semanticLabel;
-
+    String? label = widget.semanticLabel;
     return Semantics(
       container: label != null,
       image: true,
-      label: label ?? '',
+      label: label ?? "",
       child: content,
     );
   }
@@ -300,13 +302,11 @@ class _ImageResolver {
     double? width,
     double? height,
   }) {
-    final size = width != null && height != null ? Size(width, height) : null;
-    final config = createLocalImageConfiguration(context, size: size);
-    _listener = ImageStreamListener(
-      _handleComplete,
-      onChunk: _handleProgress,
-      onError: _handleError,
-    );
+    Size? size = width != null && height != null ? Size(width, height) : null;
+    ImageConfiguration config =
+        createLocalImageConfiguration(context, size: size);
+    _listener = ImageStreamListener(_handleComplete,
+        onChunk: _handleProgress, onError: _handleError);
     _stream = provider.resolve(config);
     _stream.addListener(_listener); // Called sync if already completed.
     notifier = ValueNotifier(0);
@@ -316,8 +316,8 @@ class _ImageResolver {
   ImageChunkEvent? chunkEvent;
   late final ValueNotifier<double> notifier;
 
-  final void Function(_ImageResolver resolver) onComplete;
-  final void Function(_ImageResolver resolver) onError;
+  final Function(_ImageResolver resolver) onComplete;
+  final Function(_ImageResolver resolver) onError;
 
   late final ImageStream _stream;
   late final ImageStreamListener _listener;
