@@ -51,7 +51,14 @@ class ImageBorderPainter extends CustomPainter {
       canvas.clipPath(clipPath);
     }
 
-    paintImage(canvas: canvas, rect: rect, image: rawImage.image!);
+    paintImage(
+        canvas: canvas,
+        rect: rect,
+        image: rawImage.image!,
+        fit: rawImage.fit,
+        scale: rawImage.scale,
+        opacity: rawImage.opacity?.value ?? 1,
+        filterQuality: rawImage.filterQuality);
   }
 
   @override
