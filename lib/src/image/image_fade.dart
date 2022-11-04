@@ -261,21 +261,32 @@ class _ImageFadeState extends State<ImageFade> with TickerProviderStateMixin {
         ),
       );
     }
-
-    var content =
-        front ?? back ?? widget.placeholder ?? const SizedBox.shrink();
-
-    if (widget.borderRadius != null) {
-      if (content is RawImage) {
-        content = CustomPaint(
-          foregroundPainter: ImageBorderPainter(
-              rawImage: content,
-              borderRadius:
-                  BorderRadius.all(Radius.circular(widget.borderRadius ?? 16)),
-              shape: BoxShape.rectangle),
-        );
+    List<Widget> kids = [];
+    if (widget.placeholder != null) kids.add(widget.placeholder!);
+    if (back != null) kids.add(back);
+    if (front != null) {
+      if (widget.borderRadius != null) {
+        if (front is RawImage) {
+          front = CustomPaint(
+            foregroundPainter: ImageBorderPainter(
+                rawImage: front,
+                borderRadius: BorderRadius.all(
+                    Radius.circular(widget.borderRadius ?? 16)),
+                shape: BoxShape.rectangle),
+          );
+        }
       }
+      kids.add(front);
     }
+
+    Widget content = SizedBox(
+      width: widget.width,
+      height: widget.height,
+      child: kids.isEmpty
+          ? null
+          : Stack(fit: StackFit.passthrough, children: kids),
+    );
+
     if (widget.excludeFromSemantics) return content;
 
     String? label = widget.semanticLabel;
