@@ -1,7 +1,8 @@
 library cached_image;
 
-/// A Calculator.
-class Calculator {
-  /// Returns [value] plus 1.
-  int addOne(int value) => value + 1;
-}
+export 'package:flutter_cache_manager/flutter_cache_manager.dart'
+    show CacheManagerLogLevel, DownloadProgress;
+
+export 'src/cached_image.dart';
+export 'src/image_provider/cached_network_image_provider.dart';
+export 'src/image_provider/multi_image_stream_completer.dart';
