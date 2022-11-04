@@ -57,7 +57,6 @@ class ImageBorderPainter extends CustomPainter {
         image: rawImage.image!,
         fit: rawImage.fit,
         scale: rawImage.scale,
-        opacity: rawImage.opacity?.value ?? 1,
         filterQuality: rawImage.filterQuality);
   }
 
